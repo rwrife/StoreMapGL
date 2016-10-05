@@ -87,14 +87,34 @@ GLushort Indices[4700];
 - (void)setup {
     [EAGLContext setCurrentContext:self.context];
     
-    glCullFace(GL_FRONT);
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
     glClearDepthf(1.0f);
-    glEnable(GL_DEPTH_TEST);
+    
     
     self.effect = [[GLKBaseEffect alloc] init];
+    
+    self.effect.lightingType = GLKLightingTypePerPixel;
+    self.effect.colorMaterialEnabled = GL_TRUE;
+    
+
+    GLKVector4 light0Pos = GLKVector4Make(2.0f, 2.0f, 5.0f, 1.0f);
+    
+    // specular, diffuse and ambient colors
+    GLKVector4 specular = GLKVector4Make(1.0f, 1.0f, 1.0f, 1.0f);
+    GLKVector4 diffuse = GLKVector4Make(1.0f, 0.0f, 0.0f, 1.0f);
+    GLKVector4 ambient = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.0f);
+    
+    
+    self.effect.light0.spotDirection = GLKVector3Make(0.0f,0.0f,0.0f);
+    self.effect.light0.enabled = GL_TRUE;
+    self.effect.light0.position = light0Pos;
+    self.effect.light0.ambientColor = ambient;
+    self.effect.light0.diffuseColor = specular;
+    self.effect.light0.specularColor = specular;
+    
     
     NSError * error;    
 
@@ -127,8 +147,9 @@ GLushort Indices[4700];
     
     [self.effect prepareToDraw];
     
-    //glDrawElements(GL_TRIANGLES, sizeof(Indices)/sizeof(Indices[0]), GL_UNSIGNED_SHORT, 0);
-    glDrawElements(GL_TRIANGLES, 4680, GL_UNSIGNED_SHORT, 0);
+    glEnable(GL_DEPTH_TEST);
+    
+    glDrawElements(GL_TRIANGLES, sizeof(Indices)/sizeof(Indices[0]), GL_UNSIGNED_SHORT, 0);
 }
 
 - (void)update {
@@ -183,7 +204,7 @@ GLushort Indices[4700];
     NSLog(@"aisle count %d", aisles.count);
     for(int k=0;k<[aisles allKeys].count;k++) { //loop each aisle
         NSString *key = [[aisles allKeys] objectAtIndex:k];
-        /*if([key caseInsensitiveCompare:@"FOOTPRINT"] != NSOrderedSame) */{
+        if([key caseInsensitiveCompare:@"FOOTPRINT"] != NSOrderedSame) {
             NSArray* aisle = (NSArray*) [aisles objectForKey:[[aisles allKeys] objectAtIndex:k]];
             
             for(int i=0;i<4;i++) { //loop each point in aisle
@@ -207,8 +228,8 @@ GLushort Indices[4700];
                     [self setColor:storeVertices[index+4].Color r:0.282f g:0.282f b:0.282f a:1.0f];
                     [self setPos:storeVertices[index+4].Position x:x y:y z:0.15f];
                 } else if ([key hasPrefix:@"S"]) {
-                    [self setColor:storeVertices[index].Color r:0.585f g:0.585f b:0.585f a:0.6f];
-                    [self setColor:storeVertices[index+4].Color r:0.585f g:0.585f b:0.585f a:1.6f];
+                    [self setColor:storeVertices[index].Color r:0.585f g:0.585f b:0.585f a:0.4f];
+                    [self setColor:storeVertices[index+4].Color r:0.585f g:0.585f b:0.585f a:0.4f];
                     [self setPos:storeVertices[index+4].Position x:x y:y z:0.1f];
                 } else if([key hasPrefix:@"FOOT"]) {
                     [self setColor:storeVertices[index].Color r:0.382f g:1.382f b:0.382f a:1.0f];
@@ -221,62 +242,29 @@ GLushort Indices[4700];
                 }
             }
             
-            //each side = 6 indices
-            //6 sides = 36 indices
-            
             int b = k*8;
             int t = b+4;
-            int i = k*36;
-            //int i = k*6;
             
-            //bottom
-            Indices[i] = b;
-            Indices[i+1] = b+1;
-            Indices[i+2] = b+2;
-            Indices[i+3] = b+2;
-            Indices[i+4] = b+3;
-            Indices[i+5] = b;
+            //four sides
+            for(int side=0;side<4;side++) {
+                int i = (k*30)+(side*6);
+                Indices[i] = b+side;
+                Indices[i+1] = side==3 ? b : b+side+1;
+                Indices[i+2] = side==3 ? t : t+side+1;
+                Indices[i+3] = side==3 ? t : t+side+1;
+                Indices[i+4] = t+side;
+                Indices[i+5] = b+side;
+            }
             
             //top
-            Indices[i+6] = t;
-            Indices[i+7] = t+1;
-            Indices[i+8] = t+2;
-            Indices[i+9] = t+2;
-            Indices[i+10] = t+3;
-            Indices[i+11] = t;
-            
-            //west
-            Indices[i+12] = b;
-            Indices[i+13] = b+1;
-            Indices[i+14] = t+1;
-            Indices[i+15] = t;
-            Indices[i+16] = t+1;
-            Indices[i+17] = b;
-            
-            //south
-            Indices[i+18] = b;
-            Indices[i+19] = b+3;
-            Indices[i+20] = t;
-            Indices[i+21] = t;
-            Indices[i+22] = t+3;
-            Indices[i+23] = b+3;
-            
-            //east
-            Indices[i+24] = b+2;
-            Indices[i+25] = b+3;
-            Indices[i+26] = t+3;
-            Indices[i+27] = t+3;
-            Indices[i+28] = t+2;
-            Indices[i+29] = b+2;
-            
-            //north
-            Indices[i+30] = b+2;
-            Indices[i+31] = b+1;
-            Indices[i+32] = t+1;
-            Indices[i+33] = t+1;
-            Indices[i+34] = t+2;
-            Indices[i+35] = b+2;
-            
+            int i = (k*30)+24;
+            Indices[i] = t;
+            Indices[i+1] = t+1;
+            Indices[i+2] = t+2;
+            Indices[i+3] = t+2;
+            Indices[i+4] = t+3;
+            Indices[i+5] = t;
+    
             
         }
         
@@ -312,7 +300,11 @@ GLushort Indices[4700];
         NSArray* columns = [row componentsSeparatedByString:@","];
         if(columns.count > 1) {
             NSMutableArray* rowVertices = [[NSMutableArray alloc] init];
+            GLKVector2 aisleVector[2];
+            aisleVector[0] = GLKVector2Make(0.0f, 0.0f);
+            aisleVector[1] = GLKVector2Make(0.0f, 0.0f);
             for(int i=1;i<columns.count;i+=2) {
+                
                 GLfloat point[3];
                 for(int j=0;j<2;j++) {
                     NSString* col = [columns objectAtIndex:i+j];
@@ -328,17 +320,45 @@ GLushort Indices[4700];
                     }
                     float convVal = ft + (inch / 12);
                     
-                    point[j] = convVal;
-                    if(j==1)
-                        point[2] = (float) 0.0f;
+                    
+                    
+                    if(j==0) {
+                        if(convVal > aisleVector[1].x) {
+                            aisleVector[1].x = convVal;
+                        }
+                        if(aisleVector[0].x == 0.0f || aisleVector[0].x > convVal) {
+                            aisleVector[0].x = convVal;
+                        }
+                    } else if(j==1) {
+                        if(convVal > aisleVector[1].y) {
+                            aisleVector[1].y = convVal;
+                        }
+                        if(aisleVector[0].y == 0.0f || aisleVector[0].y > convVal) {
+                            aisleVector[0].y = convVal;
+                        }
+                    }
+                    
                 }
-                
-                NSArray* pointArray = [NSArray arrayWithObjects:[NSNumber numberWithFloat:point[0]],
-                                       [NSNumber numberWithFloat:point[1]],
-                                       [NSNumber numberWithFloat:point[2]],nil];
-                
-                [rowVertices addObject:pointArray];
             }//col loop
+            
+            
+            [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[0].x],
+                                    [NSNumber numberWithFloat:aisleVector[0].y],
+                                    [NSNumber numberWithFloat:0.0f],nil] ];
+            
+            [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[0].x],
+                                    [NSNumber numberWithFloat:aisleVector[1].y],
+                                    [NSNumber numberWithFloat:0.0f],nil] ];
+            
+            [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[1].x],
+                                    [NSNumber numberWithFloat:aisleVector[1].y],
+                                    [NSNumber numberWithFloat:0.0f],nil] ];
+
+            [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[1].x],
+                                    [NSNumber numberWithFloat:aisleVector[0].y],
+                                    [NSNumber numberWithFloat:0.0f],nil] ];
+            
+            
             [aisles setValue:rowVertices forKey:(NSString*)[columns objectAtIndex:0]];
         }
         
