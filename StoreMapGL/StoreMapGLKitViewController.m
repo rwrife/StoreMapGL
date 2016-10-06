@@ -3,17 +3,29 @@
 typedef struct {
     float Position[3];
     float Color[4];
+    float Texture[2];
+    float Normal[3];
 } Vertex;
 
+//pan
 CGPoint panCoord;
 float sX = 0.0f;
 float sY = 0.0f;
-
 float tX = 0.0f;
 float tY = 0.0f;
 
+//zoom
 float pS = 1.0f;
 float tS = 1.0f;
+
+//go 3D
+CGPoint twoPanCoord;
+float tsY = 0.0f;
+float tsX = 0.0f;
+float ttY = 0.0f;
+float ttX = 0.0f;
+
+int numTouches = 0;
 
 Vertex storeVertices[1500];
 
@@ -21,7 +33,7 @@ GLushort Indices[4700];
 
 @interface StoreMapGLKitViewController () {
     GLuint _vertexBuffer;
-    GLuint _indexBuffer;   
+    GLuint _indexBuffer;
     GLuint _vertexArray;
 }
 @property (strong, nonatomic) EAGLContext *context;
@@ -44,8 +56,10 @@ GLushort Indices[4700];
 {
     [super viewDidLoad];
     
-    NSDictionary* aisles = [self readStoreCadFile:@"6709.csv"];
-    [self setStoreVertices:aisles];
+    GLKVector4 bounds = GLKVector4Make(0.0f, 0.0f, 0.0f, 0.0f);
+    
+    NSDictionary* aisles = [self readStoreCadFile:@"6709.csv" bounds:&bounds];
+    [self setStoreVertices:aisles bounds:bounds];
     
     self.context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES2];
     
@@ -60,7 +74,7 @@ GLushort Indices[4700];
     
     UIPanGestureRecognizer *panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragging:)];
     [panRecognizer setMinimumNumberOfTouches:1];
-    [panRecognizer setMaximumNumberOfTouches:1];
+    [panRecognizer setMaximumNumberOfTouches:2];
     [view addGestureRecognizer:panRecognizer];
     
     UIPinchGestureRecognizer *pinchRecognizer = [[UIPinchGestureRecognizer alloc] initWithTarget:self action:@selector(pinching:)];
@@ -87,8 +101,8 @@ GLushort Indices[4700];
 - (void)setup {
     [EAGLContext setCurrentContext:self.context];
     
-    glEnable (GL_BLEND);
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glEnable (GL_BLEND);
+    //glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glClearDepthf(1.0f);
@@ -96,28 +110,15 @@ GLushort Indices[4700];
     
     self.effect = [[GLKBaseEffect alloc] init];
     
-    self.effect.lightingType = GLKLightingTypePerPixel;
-    self.effect.colorMaterialEnabled = GL_TRUE;
-    
-
-    GLKVector4 light0Pos = GLKVector4Make(2.0f, 2.0f, 5.0f, 1.0f);
-    
-    // specular, diffuse and ambient colors
-    GLKVector4 specular = GLKVector4Make(1.0f, 1.0f, 1.0f, 1.0f);
-    GLKVector4 diffuse = GLKVector4Make(1.0f, 0.0f, 0.0f, 1.0f);
-    GLKVector4 ambient = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.0f);
+    /*self.effect.light0.enabled = GL_TRUE;
+    self.effect.light0.diffuseColor = GLKVector4Make(1.0f, 1.0f, 0.0f, 1.0f);
+    self.effect.light0.specularColor = GLKVector4Make(1.0f, 1.0f, 0.0f, 1.0f);
+    self.effect.light0.position = GLKVector4Make(1.0f, 1.0f, 0.5f, 0.0f);*/
     
     
-    self.effect.light0.spotDirection = GLKVector3Make(0.0f,0.0f,0.0f);
-    self.effect.light0.enabled = GL_TRUE;
-    self.effect.light0.position = light0Pos;
-    self.effect.light0.ambientColor = ambient;
-    self.effect.light0.diffuseColor = specular;
-    self.effect.light0.specularColor = specular;
     
+    NSError * error;
     
-    NSError * error;    
-
     glGenBuffers(1, &_vertexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(storeVertices), storeVertices, GL_STATIC_DRAW);
@@ -126,10 +127,27 @@ GLushort Indices[4700];
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
     
-    glEnableVertexAttribArray(GLKVertexAttribPosition);        
+    
+    glEnableVertexAttribArray(GLKVertexAttribPosition);
     glVertexAttribPointer(GLKVertexAttribPosition, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Position));
     glEnableVertexAttribArray(GLKVertexAttribColor);
     glVertexAttribPointer(GLKVertexAttribColor, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Color));
+    
+    
+}
+
+- (void) calculateSurfaceNormals: (GLKVector3 *) normals forVertices: (GLKVector3 *)incomingVertices count:(int) numOfVertices
+{
+    
+    for(int i = 0; i < numOfVertices; i+=3)
+    {
+        GLKVector3 vector1 = GLKVector3Subtract(incomingVertices[i+1],incomingVertices[i]);
+        GLKVector3 vector2 = GLKVector3Subtract(incomingVertices[i+2],incomingVertices[i]);
+        GLKVector3 normal = GLKVector3Normalize(GLKVector3CrossProduct(vector1, vector2));
+        normals[i] = normal;
+        normals[i+1] = normal;
+        normals[i+2] = normal;
+    }
 }
 
 
@@ -154,13 +172,12 @@ GLushort Indices[4700];
 
 - (void)update {
     float aspect = fabsf(self.view.bounds.size.width / self.view.bounds.size.height);
-    GLKMatrix4 projectionMatrix =  GLKMatrix4MakePerspective(GLKMathDegreesToRadians(45.0f), aspect, 0.0f, 100.0f);
+    GLKMatrix4 projectionMatrix =  GLKMatrix4MakePerspective(GLKMathDegreesToRadians(35.0f), aspect, 1.0f, 100.0f);
     self.effect.transform.projectionMatrix = projectionMatrix;
-
-    GLKMatrix4 modelViewMatrix = GLKMatrix4MakeTranslation(sX, 0, (-3.0f + (pS/2)));
-    modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(sY*180), 1, 0, 0);
-    //modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(sX*180), 0, 0, 1);
-    //modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(45), 0, 0, 1);
+    
+    GLKMatrix4 modelViewMatrix = GLKMatrix4MakeTranslation(sX, sY, (-3.0f + (pS/2)));
+    modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsY*180), 1, 0, 0);
+    modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsX*180), 0, 0, 1);
     self.effect.transform.modelviewMatrix = modelViewMatrix;
 }
 
@@ -178,29 +195,49 @@ GLushort Indices[4700];
 
 -(void)dragging:(UIPanGestureRecognizer *)gesture
 {
-    if(gesture.state == UIGestureRecognizerStateBegan)
+    int w = self.view.bounds.size.width;
+    int h = self.view.bounds.size.height;
+
+    if(gesture.state == UIGestureRecognizerStateBegan && numTouches == 0)
     {
         panCoord = [gesture locationInView:gesture.view];
-        tX = sX;
-        tY = sY;
+        numTouches = gesture.numberOfTouches;
+    }
+    
+    if(gesture.state == UIGestureRecognizerStateEnded)
+    {
+        numTouches = 0;
     }
     
     CGPoint newCoord = [gesture locationInView:gesture.view];
     float dX = newCoord.x-panCoord.x;
     float dY = newCoord.y-panCoord.y;
     
-    
-    int w = self.view.bounds.size.width;
-    int h = self.view.bounds.size.height;
-    
-    sX = tX + dX/w;
-    sY = tY + (0 - dY/h);
+    if(numTouches == 1) {
+        if(gesture.state == UIGestureRecognizerStateBegan)
+        {
+            tX = sX;
+            tY = sY;
+        }
+        
+        sX = tX + dX/w;
+        sY = tY + (0 - dY/h);
+    } else if(numTouches == 2) {
+        if(gesture.state == UIGestureRecognizerStateBegan)
+        {
+            tX = tsX;
+            tY = tsY;
+        }
+        
+        tsY = tY + (0 - dY/h);
+        tsX = tX + dX/w;
+    }
     
 }
 
 #pragma mark - Parse store cad file
 
--(void) setStoreVertices:(NSDictionary*) aisles {
+-(void) setStoreVertices:(NSDictionary*) aisles bounds:(GLKVector4) bounds {
     NSLog(@"aisle count %d", aisles.count);
     for(int k=0;k<[aisles allKeys].count;k++) { //loop each aisle
         NSString *key = [[aisles allKeys] objectAtIndex:k];
@@ -210,8 +247,11 @@ GLushort Indices[4700];
             for(int i=0;i<4;i++) { //loop each point in aisle
                 NSArray* point = [aisle objectAtIndex:i];
                 
-                float x = [(NSNumber*)[point objectAtIndex:0] floatValue] / 150 - 1;
-                float y = [(NSNumber*)[point objectAtIndex:1] floatValue] / 150 - 1;
+                int w = bounds.z - bounds.x;
+                int h = bounds.w - bounds.y;
+                
+                float x = ([(NSNumber*)[point objectAtIndex:0] floatValue] - (bounds.x + w/2)) / w;
+                float y = ([(NSNumber*)[point objectAtIndex:1] floatValue] - (bounds.y + h/2)) / h;
                 //float z = [(NSNumber*)[point objectAtIndex:2] floatValue]; //0
                 
                 int index = k*8+i;
@@ -224,7 +264,7 @@ GLushort Indices[4700];
                 }
                 
                 if([key hasPrefix:@"W"]) {
-                    [self setColor:storeVertices[index].Color r:0.282f g:0.282f b:0.282f a:1.0f];
+                    [self setColor:storeVertices[index].Color r:0.282f g:0.282f b:0.282f a:0.9f];
                     [self setColor:storeVertices[index+4].Color r:0.282f g:0.282f b:0.282f a:1.0f];
                     [self setPos:storeVertices[index+4].Position x:x y:y z:0.15f];
                 } else if ([key hasPrefix:@"S"]) {
@@ -234,12 +274,15 @@ GLushort Indices[4700];
                 } else if([key hasPrefix:@"FOOT"]) {
                     [self setColor:storeVertices[index].Color r:0.382f g:1.382f b:0.382f a:1.0f];
                     [self setColor:storeVertices[index+4].Color r:0.382f g:1.382f b:0.382f a:1.0f];
-                    [self setPos:storeVertices[index+4].Position x:x y:y z:-0.2f];
+                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.0f];
                 } else {
-                    [self setColor:storeVertices[index].Color r:0.921f g:0.146f b:0.139f a:0.8f];
-                    [self setColor:storeVertices[index+4].Color r:0.921f g:0.146f b:0.139f a:1.8f];
+                    [self setColor:storeVertices[index].Color r:0.921f g:0.146f b:0.139f a:0.7f];
+                    [self setColor:storeVertices[index+4].Color r:0.921f g:0.146f b:0.139f a:1.0f];
                     [self setPos:storeVertices[index+4].Position x:x y:y z:0.03f];
                 }
+                
+                [self setNormal:storeVertices[index].Normal x:0.0f y:0.0f z:1.0f];
+                [self setNormal:storeVertices[index+4].Normal x:0.0f y:0.0f z:1.0f];
             }
             
             int b = k*8;
@@ -264,7 +307,7 @@ GLushort Indices[4700];
             Indices[i+3] = t+2;
             Indices[i+4] = t+3;
             Indices[i+5] = t;
-    
+            
             
         }
         
@@ -285,7 +328,13 @@ GLushort Indices[4700];
     color[3] = a;
 }
 
--(NSDictionary*) readStoreCadFile:(NSString*) filename
+-(void) setNormal:(float[3]) normal x:(float) x  y:(float) y  z:(float) z {
+    normal[0] = x;
+    normal[1] = y;
+    normal[2] = z;
+}
+
+-(NSDictionary*) readStoreCadFile:(NSString*) filename bounds:(GLKVector4*)bounds
 {
     NSMutableDictionary *aisles = [[NSMutableDictionary alloc] init];
     NSError *errorReading;
@@ -353,16 +402,26 @@ GLushort Indices[4700];
             [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[1].x],
                                     [NSNumber numberWithFloat:aisleVector[1].y],
                                     [NSNumber numberWithFloat:0.0f],nil] ];
-
+            
             [rowVertices addObject:[NSArray arrayWithObjects:[NSNumber numberWithFloat:aisleVector[1].x],
                                     [NSNumber numberWithFloat:aisleVector[0].y],
                                     [NSNumber numberWithFloat:0.0f],nil] ];
             
-            
             [aisles setValue:rowVertices forKey:(NSString*)[columns objectAtIndex:0]];
+            
+            
+            if(bounds->x == 0 || bounds->x > aisleVector[0].x)
+                bounds->x = aisleVector[0].x;
+            
+            if(bounds->y == 0 || bounds->y > aisleVector[0].y)
+                bounds->y = aisleVector[0].y;
+            
+            if(bounds->z < aisleVector[1].x)
+                bounds->z = aisleVector[1].x;
+            
+            if(bounds->w < aisleVector[1].y)
+                bounds->w = aisleVector[1].y;
         }
-        
-        
     }// row loop
     return aisles;
 }
