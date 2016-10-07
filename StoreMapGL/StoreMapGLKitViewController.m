@@ -29,7 +29,7 @@ int numTouches = 0;
 
 Vertex storeVertices[1500];
 
-GLushort Indices[4700];
+GLushort Indices[4000];
 
 @interface StoreMapGLKitViewController () {
     GLuint _vertexBuffer;
@@ -101,8 +101,9 @@ GLushort Indices[4700];
 - (void)setup {
     [EAGLContext setCurrentContext:self.context];
     
-    //glEnable (GL_BLEND);
-    //glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     glClearDepthf(1.0f);
@@ -110,10 +111,18 @@ GLushort Indices[4700];
     
     self.effect = [[GLKBaseEffect alloc] init];
     
-    /*self.effect.light0.enabled = GL_TRUE;
-    self.effect.light0.diffuseColor = GLKVector4Make(1.0f, 1.0f, 0.0f, 1.0f);
-    self.effect.light0.specularColor = GLKVector4Make(1.0f, 1.0f, 0.0f, 1.0f);
-    self.effect.light0.position = GLKVector4Make(1.0f, 1.0f, 0.5f, 0.0f);*/
+    self.effect.colorMaterialEnabled = GL_TRUE;
+    
+    self.effect.lightingType = GLKLightingTypePerPixel;
+    self.effect.light0.enabled = GL_TRUE;
+    self.effect.light0.diffuseColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.5f);
+    self.effect.light0.ambientColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.2f);
+    self.effect.light0.specularColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.4f);
+
+    self.effect.light1.enabled = GL_TRUE;
+    self.effect.light1.diffuseColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.8f);
+    self.effect.light1.specularColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.4f);
+
     
     
     
@@ -133,23 +142,11 @@ GLushort Indices[4700];
     glEnableVertexAttribArray(GLKVertexAttribColor);
     glVertexAttribPointer(GLKVertexAttribColor, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Color));
     
+    glEnableVertexAttribArray(GLKVertexAttribNormal);
+    glVertexAttribPointer(GLKVertexAttribNormal, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Normal));
+
     
 }
-
-- (void) calculateSurfaceNormals: (GLKVector3 *) normals forVertices: (GLKVector3 *)incomingVertices count:(int) numOfVertices
-{
-    
-    for(int i = 0; i < numOfVertices; i+=3)
-    {
-        GLKVector3 vector1 = GLKVector3Subtract(incomingVertices[i+1],incomingVertices[i]);
-        GLKVector3 vector2 = GLKVector3Subtract(incomingVertices[i+2],incomingVertices[i]);
-        GLKVector3 normal = GLKVector3Normalize(GLKVector3CrossProduct(vector1, vector2));
-        normals[i] = normal;
-        normals[i+1] = normal;
-        normals[i+2] = normal;
-    }
-}
-
 
 - (void)teardown {
     [EAGLContext setCurrentContext:self.context];
@@ -166,19 +163,28 @@ GLushort Indices[4700];
     [self.effect prepareToDraw];
     
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
     
+    //glDrawArrays(GL_TRIANGLES, 0, 3900);
     glDrawElements(GL_TRIANGLES, sizeof(Indices)/sizeof(Indices[0]), GL_UNSIGNED_SHORT, 0);
 }
 
 - (void)update {
+    
+    
     float aspect = fabsf(self.view.bounds.size.width / self.view.bounds.size.height);
     GLKMatrix4 projectionMatrix =  GLKMatrix4MakePerspective(GLKMathDegreesToRadians(35.0f), aspect, 1.0f, 100.0f);
     self.effect.transform.projectionMatrix = projectionMatrix;
+    
+    
     
     GLKMatrix4 modelViewMatrix = GLKMatrix4MakeTranslation(sX, sY, (-3.0f + (pS/2)));
     modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsY*180), 1, 0, 0);
     modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsX*180), 0, 0, 1);
     self.effect.transform.modelviewMatrix = modelViewMatrix;
+    
+    self.effect.light0.position = GLKVector4Make(3.0, 3.0, 10.0, 0.0);
+    self.effect.light0.position = GLKVector4Make(-3.0, -3.0, 10.0, 0.0);
 }
 
 
@@ -251,7 +257,7 @@ GLushort Indices[4700];
                 int h = bounds.w - bounds.y;
                 
                 float x = ([(NSNumber*)[point objectAtIndex:0] floatValue] - (bounds.x + w/2)) / w;
-                float y = ([(NSNumber*)[point objectAtIndex:1] floatValue] - (bounds.y + h/2)) / h;
+                float y = ([(NSNumber*)[point objectAtIndex:1] floatValue] - (bounds.y + h/2)) / w;
                 //float z = [(NSNumber*)[point objectAtIndex:2] floatValue]; //0
                 
                 int index = k*8+i;
@@ -264,25 +270,22 @@ GLushort Indices[4700];
                 }
                 
                 if([key hasPrefix:@"W"]) {
-                    [self setColor:storeVertices[index].Color r:0.282f g:0.282f b:0.282f a:0.9f];
-                    [self setColor:storeVertices[index+4].Color r:0.282f g:0.282f b:0.282f a:1.0f];
-                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.15f];
+                    [self setColor:storeVertices[index].Color r:0.182f g:0.182f b:0.182f a:1.0f];
+                    [self setColor:storeVertices[index+4].Color r:0.182f g:0.182f b:0.182f a:0.8f];
+                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.10f];
                 } else if ([key hasPrefix:@"S"]) {
-                    [self setColor:storeVertices[index].Color r:0.585f g:0.585f b:0.585f a:0.4f];
-                    [self setColor:storeVertices[index+4].Color r:0.585f g:0.585f b:0.585f a:0.4f];
-                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.1f];
+                    [self setColor:storeVertices[index].Color r:0.385f g:0.385f b:0.385f a:1.0f];
+                    [self setColor:storeVertices[index+4].Color r:0.385f g:0.385f b:0.385f a:0.7f];
+                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.07f];
                 } else if([key hasPrefix:@"FOOT"]) {
                     [self setColor:storeVertices[index].Color r:0.382f g:1.382f b:0.382f a:1.0f];
                     [self setColor:storeVertices[index+4].Color r:0.382f g:1.382f b:0.382f a:1.0f];
                     [self setPos:storeVertices[index+4].Position x:x y:y z:0.0f];
                 } else {
-                    [self setColor:storeVertices[index].Color r:0.921f g:0.146f b:0.139f a:0.7f];
+                    [self setColor:storeVertices[index].Color r:0.921f g:0.146f b:0.139f a:1.0f];
                     [self setColor:storeVertices[index+4].Color r:0.921f g:0.146f b:0.139f a:1.0f];
-                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.03f];
+                    [self setPos:storeVertices[index+4].Position x:x y:y z:0.04f];
                 }
-                
-                [self setNormal:storeVertices[index].Normal x:0.0f y:0.0f z:1.0f];
-                [self setNormal:storeVertices[index+4].Normal x:0.0f y:0.0f z:1.0f];
             }
             
             int b = k*8;
@@ -307,13 +310,27 @@ GLushort Indices[4700];
             Indices[i+3] = t+2;
             Indices[i+4] = t+3;
             Indices[i+5] = t;
-            
-            
         }
         
         
-    }
+        for(int i=6;i<sizeof(Indices)/sizeof(Indices[0]);i+=6) {
+            
+                float x=0.0f, y=0.0f, z=0.0f;
+                for(int v=i-6;v<i;v++) {
+                    x+=storeVertices[Indices[v]].Position[0];
+                    y+=storeVertices[Indices[v]].Position[1];
+                    z+=storeVertices[Indices[v]].Position[2];
+                }
+                for(int v=i-6;v<i;v++) {
+                    [self setNormal:storeVertices[Indices[v]].Normal  x:x/2 y:y/2  z:z/2];
+                }
+
+        }
+        
+    } //for each aisle
 }
+
+
 
 -(void) setPos:(float[3]) point x:(float) x  y:(float) y  z:(float) z {
     point[0] = x;
