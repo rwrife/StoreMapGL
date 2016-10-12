@@ -70,6 +70,7 @@ GLushort Indices[4000];
     GLKView *view = (GLKView *)self.view;
     view.context = self.context;
     view.drawableMultisample = GLKViewDrawableMultisample4X;
+    view.drawableDepthFormat = GLKViewDrawableDepthFormat24;
     [self setup];
     
     UIPanGestureRecognizer *panRecognizer = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragging:)];
@@ -103,11 +104,9 @@ GLushort Indices[4000];
     
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
-    glClearDepthf(1.0f);
-    
+    glEnable(GL_DEPTH_TEST);
     
     self.effect = [[GLKBaseEffect alloc] init];
     
@@ -124,10 +123,6 @@ GLushort Indices[4000];
     self.effect.light1.specularColor = GLKVector4Make(1.0f, 1.0f, 1.0f, 0.4f);
 
     
-    
-    
-    NSError * error;
-    
     glGenBuffers(1, &_vertexBuffer);
     glBindBuffer(GL_ARRAY_BUFFER, _vertexBuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(storeVertices), storeVertices, GL_STATIC_DRAW);
@@ -136,7 +131,6 @@ GLushort Indices[4000];
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(Indices), Indices, GL_STATIC_DRAW);
     
-    
     glEnableVertexAttribArray(GLKVertexAttribPosition);
     glVertexAttribPointer(GLKVertexAttribPosition, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Position));
     glEnableVertexAttribArray(GLKVertexAttribColor);
@@ -144,8 +138,6 @@ GLushort Indices[4000];
     
     glEnableVertexAttribArray(GLKVertexAttribNormal);
     glVertexAttribPointer(GLKVertexAttribNormal, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const GLvoid *) offsetof(Vertex, Normal));
-
-    
 }
 
 - (void)teardown {
@@ -156,16 +148,11 @@ GLushort Indices[4000];
 }
 
 - (void)glkView:(GLKView *)view drawInRect:(CGRect)rect {
-    
-    glClearColor(0.95, 0.95, 0.95, 1.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClearColor(0.95, 0.95, 0.95, 1.0);
     
     [self.effect prepareToDraw];
     
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    
-    //glDrawArrays(GL_TRIANGLES, 0, 3900);
     glDrawElements(GL_TRIANGLES, sizeof(Indices)/sizeof(Indices[0]), GL_UNSIGNED_SHORT, 0);
 }
 
@@ -175,9 +162,7 @@ GLushort Indices[4000];
     float aspect = fabsf(self.view.bounds.size.width / self.view.bounds.size.height);
     GLKMatrix4 projectionMatrix =  GLKMatrix4MakePerspective(GLKMathDegreesToRadians(35.0f), aspect, 1.0f, 100.0f);
     self.effect.transform.projectionMatrix = projectionMatrix;
-    
-    
-    
+        
     GLKMatrix4 modelViewMatrix = GLKMatrix4MakeTranslation(sX, sY, (-3.0f + (pS/2)));
     modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsY*180), 1, 0, 0);
     modelViewMatrix = GLKMatrix4Rotate(modelViewMatrix, GLKMathDegreesToRadians(tsX*180), 0, 0, 1);
